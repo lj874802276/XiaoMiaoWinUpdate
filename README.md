@@ -27,6 +27,7 @@
 
 2. **使用本仓库的安装包（自动检测并安装）**
    直接下载并用管理员身份运行本仓库生成的 `XiaoMiaoWinUpdate_Setup.exe`：
+   > **Windows 7 / 8.1 离线用户**：建议改用 `XiaoMiaoWinUpdate_Setup_Win7.exe`（已内置 .NET 4.8 离线包，双击全自动安装，无需联网或准备文件，详见第 9 节）。
    - 安装包会自动检测系统中是否已安装 .NET Framework 4.8；
    - 若未安装，会**自动静默安装** 4.8 运行库（需同目录附带 `ndp48-x86-x64-allos-enu.exe`），或引导你打开官方下载页手动安装；
    - 随后释放主程序，并在桌面 / 开始菜单创建快捷方式。
@@ -200,25 +201,38 @@ signtool verify /pa XiaoMiaoWinUpdate.exe
 
 ## 9. 安装包构建（setup.nsi）
 
-仓库根目录的 `setup.nsi` 是一个 NSIS 安装脚本，用于生成 `XiaoMiaoWinUpdate_Setup.exe`，自动检测并安装 .NET Framework 4.8 后释放主程序（详见脚本顶部注释）。
+仓库根目录的 `setup.nsi` 是一个 NSIS 安装脚本，通过编译开关 `!ifdef INCLUDE_DOTNET` 生成**两个**安装包：标准版（不含离线包）与 Win7 专用版（内置 .NET 4.8 离线包，完全离线一键装）。两个包均会自动检测系统中是否已安装 .NET Framework 4.8，缺失时静默安装后再释放主程序（详见脚本顶部注释）。
 
-### 9.1 构建步骤
+### 9.1 两个安装包的区别
+
+| 安装包 | 编译命令 | 适用场景 | .NET 4.8 缺失时的行为 |
+|--------|----------|----------|------------------------|
+| `XiaoMiaoWinUpdate_Setup.exe`（标准版） | `makensis setup.nsi` | Windows 10 / 11，或已/将自行安装 .NET 4.8 的环境 | 优先用安装包**同目录**的外置 `ndp48-x86-x64-allos-enu.exe` 静默安装；无外置包则打开官方下载页并提示手动安装后重试 |
+| `XiaoMiaoWinUpdate_Setup_Win7.exe`（Win7 专用版） | `makensis /DINCLUDE_DOTNET setup.nsi` | Windows 7 / 8.1 等往往没有 4.8 的离线环境 | 自动把**打包在安装包内部**的 `ndp48` 离线包释放到临时目录并静默安装（`/q /norestart`），无需联网或准备文件 |
+
+> **如何选择**：Win10 / 11 用户下载标准版即可；Win7 / 8.1 用户（尤其无网或不想手动找离线包）直接下载「Win7 专用版」，双击即可全自动装好 4.8 + 主程序。
+
+### 9.2 构建步骤
 
 1. 安装 NSIS 3.x（<https://nsis.sourceforge.io/>）。
 2. 确保仓库根目录存在：
    - `bin\Release\XiaoMiaoWinUpdate.exe`（Release 编译产物）
    - `icon.ico`
-   - （可选）`ndp48-x86-x64-allos-enu.exe`（.NET 4.8 离线包，放同目录可实现离线自动安装）
-3. 在项目根目录执行：
+   - 生成「Win7 专用版」时还需 `ndp48-x86-x64-allos-enu.exe`（标准版不强制要求，运行时再外置即可）
+3. 在项目根目录按需要执行：
 
    ```cmd
+   :: 标准版（不含离线包）
    makensis setup.nsi
+
+   :: Win7 专用版（内置 .NET 4.8 离线包）
+   makensis /DINCLUDE_DOTNET setup.nsi
    ```
 
-4. 生成的安装包为 `XiaoMiaoWinUpdate_Setup.exe`。
+4. 生成的两个安装包分别为 `XiaoMiaoWinUpdate_Setup.exe` 与 `XiaoMiaoWinUpdate_Setup_Win7.exe`。
 
-### 9.2 说明
+### 9.3 说明
 
-- 安装包请求**管理员权限**（`RequestExecutionLevel admin`），因为主程序需修改系统服务 / 注册表。
-- 若系统未装 .NET 4.8：同目录有离线包则静默安装（`/q /norestart`）；无离线包则打开官方下载页并提示手动安装后重试。
+- 两个安装包都请求**管理员权限**（`RequestExecutionLevel admin`），因为主程序需修改系统服务 / 注册表。
+- 若 .NET 4.8 安装失败（被取消或返回非零），安装程序会提示并中止，绝不带病进入主安装流程。
 - 安装后提供卸载程序（`Uninstall.exe`），会从桌面 / 开始菜单与安装目录清理本程序。
