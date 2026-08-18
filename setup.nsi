@@ -2,8 +2,8 @@
 ; 小喵 Windows 更新助手 · NSIS 安装脚本 (setup.nsi)
 ;============================================================
 ;
-; 本脚本用于生成 Windows 安装包 XiaoMiaoWinUpdate_Setup.exe，
-; 让用户（尤其是 Windows 7 / 8.1 用户）双击安装包即可：
+; 本脚本用于生成 Windows 安装包，让用户（尤其是 Windows 7 / 8.1
+; 用户）双击安装包即可：
 ;   1) 自动以管理员权限运行（主程序需修改系统服务 / 注册表）；
 ;   2) 自动检测并安装 .NET Framework 4.8 运行库；
 ;   3) 释放主程序 XiaoMiaoWinUpdate.exe 与图标 icon.ico；
@@ -22,18 +22,25 @@
 ; CLR 版本号，实际缺失的是 .NET Framework 4.8 运行库。
 ;
 ;------------------------------------------------------------
-; 二、如何准备 .NET 4.8 离线安装包（可选但推荐）
+; 二、关于 .NET 4.8 离线安装包（ndp48-x86-x64-allos-enu.exe）
 ;
-; 若希望安装包能在「无网络 / 受限环境」一键装好 4.8，可把
-; 官方离线安装包放到与本脚本同目录：
+; 本脚本通过编译开关 !ifdef INCLUDE_DOTNET 生成「两个」安装包：
 ;
-;   文件名：ndp48-x86-x64-allos-enu.exe
-;   下载页：https://dotnet.microsoft.com/download/dotnet-framework/net48
+;   A. 标准版（默认，不含离线包）
+;      编译时不需要 ndp48 文件；运行时若系统未装 .NET 4.8，安装
+;      程序会在「自身所在目录（$EXEDIR）」查找外置的
+;      ndp48-x86-x64-allos-enu.exe，找到则静默安装，找不到则打开
+;      官方下载页并提示用户手动安装后重试。
 ;
-; 编译后，把该 exe 与生成的 XiaoMiaoWinUpdate_Setup.exe 放在
-; 同一文件夹分发即可。运行时安装包会自动静默执行它
-; （/q /norestart）。若同目录没有该文件，安装包会改为打开官方
-; 下载页，提示用户手动安装 4.8 后重试。
+;   B. Win7 专用版（/DINCLUDE_DOTNET，内含离线包）
+;      编译时必须把官方离线安装包 ndp48-x86-x64-allos-enu.exe 放到
+;      与本脚本同目录，本脚本会把它「打包进」安装包内部；运行时若
+;      系统未装 .NET 4.8，安装程序自动把内置的离线包释放到临时目录
+;      （$PLUGINSDIR）并静默执行（/q /norestart），无需用户联网或
+;      手动准备文件。
+;
+;   离线安装包下载页：
+;   https://dotnet.microsoft.com/download/dotnet-framework/net48
 ;
 ;------------------------------------------------------------
 ; 三、如何编译
@@ -42,14 +49,24 @@
 ;   2. 确保本脚本同目录存在：
 ;        - bin\Release\XiaoMiaoWinUpdate.exe  （Release 编译产物）
 ;        - icon.ico
-;        - （可选）ndp48-x86-x64-allos-enu.exe
-;   3. 在「命令提示符」中进入项目根目录，执行：
-;          makensis setup.nsi
-;   4. 生成的安装包为：XiaoMiaoWinUpdate_Setup.exe
+;        - 生成「Win7 专用版」时还需：ndp48-x86-x64-allos-enu.exe
+;          （标准版不要求，运行时再外置即可）
+;   3. 在「命令提示符」中进入项目根目录，按需要执行：
 ;
-; 说明：本脚本顶部声明了 Unicode true，请用 NSIS 3.x 的
-;       makensis（默认即为 Unicode 构建）编译，.nsi 文件请以
-;       UTF-8（含 BOM）保存，以确保简体中文界面正常显示。
+;      【标准版】XiaoMiaoWinUpdate_Setup.exe
+;          makensis /INPUTCHARSET UTF8 setup.nsi
+;
+;      【Win7 专用版】XiaoMiaoWinUpdate_Setup_Win7.exe（内含离线包）
+;          makensis /INPUTCHARSET UTF8 /DINCLUDE_DOTNET setup.nsi
+;
+;   4. 生成的两个安装包分别为：
+;        XiaoMiaoWinUpdate_Setup.exe           （标准版）
+;        XiaoMiaoWinUpdate_Setup_Win7.exe      （Win7 专用版）
+;
+; 说明：本脚本顶部声明了 Unicode true，请用 NSIS 3.x 的 makensis
+;       （默认即为 Unicode 构建）编译；使用 /INPUTCHARSET UTF8 让
+;       makensis 以 UTF-8 读取本脚本，.nsi 文件请以 UTF-8（含 BOM）
+;       保存，以确保简体中文界面正常显示。
 ;
 ;============================================================
 
@@ -60,7 +77,16 @@ Unicode true
 
 ;----- 基本信息 -----
 Name "小喵 Windows 更新助手"
-OutFile "XiaoMiaoWinUpdate_Setup.exe"
+
+;----- 输出文件名（根据编译开关切换，OutFile 仅出现一次）-----
+!ifdef INCLUDE_DOTNET
+  ; Win7 专用版：安装包内已包含 .NET 4.8 离线安装包
+  OutFile "XiaoMiaoWinUpdate_Setup_Win7.exe"
+!else
+  ; 标准版
+  OutFile "XiaoMiaoWinUpdate_Setup.exe"
+!endif
+
 InstallDir "$PROGRAMFILES\XiaoMiaoWinUpdate"
 RequestExecutionLevel admin
 
@@ -115,30 +141,60 @@ Function .onInit
     Goto dotNetReady
   ${EndIf}
 
-  ; 未安装：优先使用安装包同目录的离线安装包
-  IfFileExists "$EXEDIR\ndp48-x86-x64-allos-enu.exe" runOfflineInstaller dotNetNeedManual
+  !ifdef INCLUDE_DOTNET
+    ;----------------------------------------------------------
+    ; Win7 专用版：安装包内已打包离线安装包，自动静默安装
+    ; 先把包内的 ndp48 离线安装包释放到临时目录 $PLUGINSDIR，
+    ; 再用 $R1 记住其路径，随后静默执行。
+    ; （$PLUGINSDIR 会在安装结束时由 NSIS 自动清理，无需手动删除）
+    ;----------------------------------------------------------
+    SetOutPath $PLUGINSDIR
+    File "ndp48-x86-x64-allos-enu.exe"
+    StrCpy $R1 "$PLUGINSDIR\ndp48-x86-x64-allos-enu.exe"
 
-runOfflineInstaller:
-  MessageBox MB_OK|MB_ICONINFORMATION \
-    "未检测到 .NET Framework 4.8 运行库。$\n$\n安装程序将自动为你安装（请稍候，可能需要几分钟，期间请勿关闭窗口）。"
-  ExecWait '"$EXEDIR\ndp48-x86-x64-allos-enu.exe" /q /norestart'
-  ; 安装完成后重新检测 .NET 4.8 是否真正就绪
-  ; （用户可能取消安装 / 安装失败返回非零退出码，此时不应继续）
-  SetRegView 64
-  ReadRegDWORD $R0 HKLM "SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" "Release"
-  SetRegView 32
-  ${If} $R0 >= ${DOTNET48_RELEASE}
-    Goto dotNetReady
-  ${EndIf}
-  MessageBox MB_OK|MB_ICONSTOP \
-    "未能成功安装 .NET Framework 4.8 运行库（可能被取消或安装失败）。本程序无法在缺少 4.8 运行库的系统上运行。$\n$\n请手动安装 .NET Framework 4.8 后重试。$\n官方下载页：https://dotnet.microsoft.com/download/dotnet-framework/net48"
-  Abort
+    MessageBox MB_OK|MB_ICONINFORMATION \
+      "未检测到 .NET Framework 4.8 运行库。$\n$\n安装程序将自动为你安装（请稍候，可能需要几分钟，期间请勿关闭窗口）。"
+    ExecWait '"$R1" /q /norestart'
 
-dotNetNeedManual:
-  ExecShell open "https://dotnet.microsoft.com/download/dotnet-framework/net48"
-  MessageBox MB_OK|MB_ICONSTOP \
-    "本程序需要 .NET Framework 4.8 运行库，但安装包同目录未找到离线安装文件 ndp48-x86-x64-allos-enu.exe。$\n$\n已为你打开官方下载页面，请先手动安装 .NET Framework 4.8，安装完成后再重新运行本安装程序。"
-  Abort
+    ; 安装完成后重新检测 .NET 4.8 是否真正就绪
+    ; （用户可能取消安装 / 安装失败返回非零退出码，此时不应继续）
+    SetRegView 64
+    ReadRegDWORD $R0 HKLM "SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" "Release"
+    SetRegView 32
+    ${If} $R0 >= ${DOTNET48_RELEASE}
+      Goto dotNetReady
+    ${EndIf}
+    MessageBox MB_OK|MB_ICONSTOP \
+      "未能成功安装 .NET Framework 4.8 运行库（可能被取消或安装失败）。本程序无法在缺少 4.8 运行库的系统上运行。$\n$\n请手动安装 .NET Framework 4.8 后重试。$\n官方下载页：https://dotnet.microsoft.com/download/dotnet-framework/net48"
+    Abort
+  !else
+    ;----------------------------------------------------------
+    ; 标准版：不打包离线包，使用安装包同目录的外置离线安装包
+    ;----------------------------------------------------------
+    IfFileExists "$EXEDIR\ndp48-x86-x64-allos-enu.exe" runOfflineInstaller dotNetNeedManual
+
+  runOfflineInstaller:
+    MessageBox MB_OK|MB_ICONINFORMATION \
+      "未检测到 .NET Framework 4.8 运行库。$\n$\n安装程序将自动为你安装（请稍候，可能需要几分钟，期间请勿关闭窗口）。"
+    ExecWait '"$EXEDIR\ndp48-x86-x64-allos-enu.exe" /q /norestart'
+    ; 安装完成后重新检测 .NET 4.8 是否真正就绪
+    ; （用户可能取消安装 / 安装失败返回非零退出码，此时不应继续）
+    SetRegView 64
+    ReadRegDWORD $R0 HKLM "SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full" "Release"
+    SetRegView 32
+    ${If} $R0 >= ${DOTNET48_RELEASE}
+      Goto dotNetReady
+    ${EndIf}
+    MessageBox MB_OK|MB_ICONSTOP \
+      "未能成功安装 .NET Framework 4.8 运行库（可能被取消或安装失败）。本程序无法在缺少 4.8 运行库的系统上运行。$\n$\n请手动安装 .NET Framework 4.8 后重试。$\n官方下载页：https://dotnet.microsoft.com/download/dotnet-framework/net48"
+    Abort
+
+  dotNetNeedManual:
+    ExecShell open "https://dotnet.microsoft.com/download/dotnet-framework/net48"
+    MessageBox MB_OK|MB_ICONSTOP \
+      "本程序需要 .NET Framework 4.8 运行库，但安装包同目录未找到离线安装文件 ndp48-x86-x64-allos-enu.exe。$\n$\n已为你打开官方下载页面，请先手动安装 .NET Framework 4.8，安装完成后再重新运行本安装程序。"
+    Abort
+  !endif
 
 dotNetReady:
 FunctionEnd
