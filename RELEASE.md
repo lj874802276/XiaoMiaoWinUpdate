@@ -10,6 +10,31 @@
 
 ---
 
+## 安装与运行环境
+
+本程序基于 **.NET Framework 4.8** 开发，提供两种分发形态，请根据系统选择：
+
+### 便携版 exe（XiaoMiaoWinUpdate.exe）
+- 单文件、免安装，双击即用（依赖 Costura.Fody 嵌入的依赖）。
+- **前提**：运行该 exe 的机器必须已安装 **.NET Framework 4.8 运行时**。
+- **适用**：Windows 10 / 11（通常已自带 4.8），或已手动装好 4.8 的 Windows 7 / 8.1。
+
+### 安装包 Setup（XiaoMiaoWinUpdate_Setup.exe）
+- 由仓库根目录 `setup.nsi`（NSIS 脚本）生成。
+- **安装包会自动检测并安装 .NET Framework 4.8**：
+  - 若安装包同目录附带官方离线包 `ndp48-x86-x64-allos-enu.exe`，则静默安装 4.8（`/q /norestart`）；
+  - 若没有离线包，则打开官方下载页引导你手动安装后重试。
+- 安装后释放主程序，并在桌面 / 开始菜单创建快捷方式，同时提供卸载程序。
+- **适用**：所有受支持系统，**尤其推荐 Windows 7 / 8.1 用户使用本安装包**。
+
+> **Win7 / 8.1 用户请注意**：这两类系统默认没有 .NET Framework 4.8 运行库。请**直接使用安装包 Setup**，或先手动安装 .NET Framework 4.8 后再运行便携版 exe。直接双击 exe 会报错「需要 .NET Framework v4.0.30319」——其中 v4.0.30319 只是 4.x 系列 CLR 版本号，实际缺失的是 **4.8 运行时**。
+
+### .NET Framework 4.8 离线安装包下载
+- 官方下载页：<https://dotnet.microsoft.com/download/dotnet-framework/net48>
+- 离线包文件名：`ndp48-x86-x64-allos-enu.exe`（放到 `setup.nsi` 同目录后编译，即可让安装包离线自动安装 4.8）
+
+---
+
 ## 1. 产品简介
 
 **一句话定位**：小喵 Windows 更新助手是一款**单文件、免安装、一键关闭 / 恢复 Windows 自动更新**的桌面工具，首次运行自动备份本机更新策略，恢复时 100% 还原到运行前的状态。
