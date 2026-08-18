@@ -8,6 +8,33 @@
 
 ---
 
+## ⚠️ Windows 7 / 8.1 用户必读（运行环境要求）
+
+本程序基于 **.NET Framework 4.8** 开发。不同系统的运行时情况如下：
+
+- **Windows 10 / 11**：系统通常已自带或已安装 .NET Framework 4.8，一般可直接运行。
+- **Windows 7 / 8.1**：全新安装的系统**往往没有** .NET Framework 4.8 运行库。若直接双击 `XiaoMiaoWinUpdate.exe`，会弹出「需要 .NET Framework v4.0.30319」的报错。
+
+> **关于报错里那个 v4.0.30319**：它只是 .NET 4.x 系列 CLR 的版本号，并不是「缺 4.0」。报错的本质是**系统缺少 .NET Framework 4.8 运行时**。因此解决办法是安装 4.8，而不是 4.0。
+
+### 两种解决方式
+
+1. **手动安装官方离线包（推荐无网络环境）**
+   从微软官方下载页获取离线安装包并按提示安装：
+   - 下载页：<https://dotnet.microsoft.com/download/dotnet-framework/net48>
+   - 离线包文件名：`ndp48-x86-x64-allos-enu.exe`
+   安装完成后即可直接双击 `XiaoMiaoWinUpdate.exe` 使用。
+
+2. **使用本仓库的安装包（自动检测并安装）**
+   直接下载并用管理员身份运行本仓库生成的 `XiaoMiaoWinUpdate_Setup.exe`：
+   - 安装包会自动检测系统中是否已安装 .NET Framework 4.8；
+   - 若未安装，会**自动静默安装** 4.8 运行库（需同目录附带 `ndp48-x86-x64-allos-enu.exe`），或引导你打开官方下载页手动安装；
+   - 随后释放主程序，并在桌面 / 开始菜单创建快捷方式。
+
+> **安装包用法**：下载 `XiaoMiaoWinUpdate_Setup.exe` 后双击，按提示「下一步」即可完成安装（安装过程会请求管理员权限，请允许）。离线包准备与编译说明详见仓库根目录 `setup.nsi` 顶部注释。
+
+---
+
 ## 1. 界面预览
 
 <p align="center">
@@ -53,6 +80,8 @@
 - Visual Studio 2022
 - .NET Framework 4.8 目标包（安装 VS 时勾选「.NET Framework 4.8 目标包」）
 - 可选：Visual Studio 的「.NET 桌面开发」工作负荷
+
+> **注意**：本程序目标框架为 .NET Framework 4.8，**Release 编译产物 `bin\Release\XiaoMiaoWinUpdate.exe` 依赖系统中已安装 .NET Framework 4.8 运行时**。Windows 10 / 11 通常已自带；Windows 7 / 8.1 需先安装 4.8（见顶部「⚠️ Windows 7 / 8.1 用户必读」），或改用仓库的 `setup.nsi` 安装包自动安装（见第 9 节）。
 
 ### 3.2 用 Visual Studio 编译
 
@@ -166,3 +195,30 @@ signtool verify /pa XiaoMiaoWinUpdate.exe
 - 作者不对因使用、误用本工具导致的任何系统不稳定、数据丢失或安全问题承担责任；使用即表示你已阅读并理解上述风险。
 - 本软件按「现状」提供（详见 `LICENSE`），不提供任何明示或暗示的担保。
 - This software is provided "as is", without warranty of any kind. Use at your own risk.
+
+---
+
+## 9. 安装包构建（setup.nsi）
+
+仓库根目录的 `setup.nsi` 是一个 NSIS 安装脚本，用于生成 `XiaoMiaoWinUpdate_Setup.exe`，自动检测并安装 .NET Framework 4.8 后释放主程序（详见脚本顶部注释）。
+
+### 9.1 构建步骤
+
+1. 安装 NSIS 3.x（<https://nsis.sourceforge.io/>）。
+2. 确保仓库根目录存在：
+   - `bin\Release\XiaoMiaoWinUpdate.exe`（Release 编译产物）
+   - `icon.ico`
+   - （可选）`ndp48-x86-x64-allos-enu.exe`（.NET 4.8 离线包，放同目录可实现离线自动安装）
+3. 在项目根目录执行：
+
+   ```cmd
+   makensis setup.nsi
+   ```
+
+4. 生成的安装包为 `XiaoMiaoWinUpdate_Setup.exe`。
+
+### 9.2 说明
+
+- 安装包请求**管理员权限**（`RequestExecutionLevel admin`），因为主程序需修改系统服务 / 注册表。
+- 若系统未装 .NET 4.8：同目录有离线包则静默安装（`/q /norestart`）；无离线包则打开官方下载页并提示手动安装后重试。
+- 安装后提供卸载程序（`Uninstall.exe`），会从桌面 / 开始菜单与安装目录清理本程序。
